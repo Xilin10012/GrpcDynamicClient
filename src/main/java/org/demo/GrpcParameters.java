@@ -21,14 +21,14 @@ public class GrpcParameters {
     private long timeout;
     private TimeUnit timeoutUnit;
     
-    // TLS配置
-    private String caCertPath;        // CA证书路径
-    private String clientCertPath;    // 客户端证书路径
-    private String clientKeyPath;     // 客户端私钥路径
-    private String trustStorePath;    // 信任库路径
-    private String trustStorePassword; // 信任库密码
-    private String keyStorePath;      // 密钥库路径
-    private String keyStorePassword;  // 密钥库密码
+//    // TLS配置
+//    private String caCertPath;        // CA证书路径
+//    private String clientCertPath;    // 客户端证书路径
+//    private String clientKeyPath;     // 客户端私钥路径
+//    private String trustStorePath;    // 信任库路径
+//    private String trustStorePassword; // 信任库密码
+//    private String keyStorePath;      // 密钥库路径
+//    private String keyStorePassword;  // 密钥库密码
     
     // 服务发现配置
     private boolean useReflection;

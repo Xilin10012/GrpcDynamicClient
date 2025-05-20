@@ -37,9 +37,6 @@ public class GrpcDynamicClient {
         this.jsonPrinter = JsonFormat.printer().includingDefaultValueFields();
         this.jsonParser = JsonFormat.parser().ignoringUnknownFields();
         
-        // 验证SSL配置
-        GrpcSslContext.validateSslConfig(parameters);
-        
         // 从channel池获取channel
         this.channel = GrpcChannelPool.getInstance().getChannel(parameters);
         

@@ -1,6 +1,7 @@
 package org.demo;
 
 import io.grpc.ManagedChannel;
+import io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.NettyChannelBuilder;
 
 import javax.net.ssl.SSLException;
@@ -90,9 +91,9 @@ public class GrpcChannelPool {
         NettyChannelBuilder builder = NettyChannelBuilder.forAddress(parameters.getHost(), parameters.getPort());
 
         if (parameters.isUseTls()) {
-            // 如果使用真实TLS，需要确保SSLContext已正确配置。
-            // 为简单起见，这里假设 NettyChannelBuilder 会处理必要的TLS设置，
-            // 或者如果 GrpcParameters 中有 SslContext，则会使用它。
+            // 为简单起见，这里使用默认的客户端SSL上下文，
+            // TODO 如果 GrpcParameters 中有 SslContext 相关信息，则会使用它。
+            builder.sslContext(GrpcSslContexts.forClient().build());
             builder.useTransportSecurity();
         } else {
             builder.usePlaintext();
