@@ -16,7 +16,7 @@ public class GrpcChannelPool {
     private static final int MAX_CHANNELS_PER_TARGET = 5; // 每个目标地址的最大通道数
     private static final long IDLE_TIMEOUT_SECONDS = 5;  // 通道空闲超时时间（秒）
 
-    private static GrpcChannelPool instance;
+    private static volatile GrpcChannelPool instance;
     private final Map<String, ChannelWrapper> channelMap; // 存储通道的映射，键为目标地址标识
     private final Map<String, Integer> channelCountMap;   // 记录每个目标地址当前的活动通道数
     private final ScheduledExecutorService scheduler;     // 用于执行定时任务（如清理空闲通道）
@@ -35,7 +35,11 @@ public class GrpcChannelPool {
 
     public static synchronized GrpcChannelPool getInstance() {
         if (instance == null) {
-            instance = new GrpcChannelPool();
+            synchronized (GrpcChannelPool.class) {
+                if (instance == null) {
+                    instance = new GrpcChannelPool();
+                }
+            }
         }
         return instance;
     }
@@ -140,7 +144,7 @@ public class GrpcChannelPool {
                         // 如果包装器中的通道已经是null（可能被其他方式关闭或从未成功创建），
                         // 且计数仍存在，这可能是一个不一致的状态，或者表示一个已清理的槽位。
                         // 考虑是否需要在这里从 channelMap 中移除这样的 wrapper，如果它的 count 也是0。
-                        // channelMap.remove(key, wrapper); // 仅当 wrapper.channel is null 且 count is 0
+                        channelMap.remove(key, wrapper); // 仅当 wrapper.channel is null 且 count is 0
                     }
                 }
             });
