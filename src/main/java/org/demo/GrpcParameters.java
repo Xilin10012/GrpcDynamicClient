@@ -1,98 +1,46 @@
 package org.demo;
 
+import com.google.protobuf.Descriptors.FileDescriptor;
 import lombok.Data;
-import org.apache.commons.lang3.StringUtils;
+import lombok.Builder;
 
-import java.util.List;
+import java.util.concurrent.TimeUnit;
 
-/**
- * gRPC task parameters
- */
 @Data
+@Builder
 public class GrpcParameters {
-
-    /**
-     * gRPC server host
-     */
+    // 基础连接参数
     private String host;
-
-    /**
-     * gRPC server port
-     */
     private int port;
-
-    /**
-     * Full service name (e.g., "package.ServiceName")
-     */
     private String serviceName;
-
-    /**
-     * Method name to call
-     */
     private String methodName;
-
-    /**
-     * Request parameters in JSON format
-     */
+    
+    // 连接配置
+    private boolean useTls;
+    private String authority;
+    private long timeout;
+    private TimeUnit timeoutUnit;
+    
+    // TLS配置
+    private String caCertPath;        // CA证书路径
+    private String clientCertPath;    // 客户端证书路径
+    private String clientKeyPath;     // 客户端私钥路径
+    private String trustStorePath;    // 信任库路径
+    private String trustStorePassword; // 信任库密码
+    private String keyStorePath;      // 密钥库路径
+    private String keyStorePassword;  // 密钥库密码
+    
+    // 服务发现配置
+    private boolean useReflection;
+    private FileDescriptor fileDescriptor;
+    private String protoFilePath;     // proto文件路径
+    private String descriptorSetPath; // 描述符集文件路径
+    
+    // 请求参数
     private String requestJson;
-
-    /**
-     * Timeout in seconds
-     */
-    private int timeoutSeconds = 30;
-
-    /**
-     * Maximum number of retries
-     */
-    private int retryTimes = 3;
-
-    /**
-     * Retry interval in seconds
-     */
-    private int retryIntervalSeconds = 5;
-
-    /**
-     * Whether to use TLS/SSL
-     */
-    private boolean useTls = false;
-
-    /**
-     * CA certificate path
-     */
-    private String caCertPath;
-
-    /**
-     * Client certificate path
-     */
-    private String clientCertPath;
-
-    /**
-     * Client private key path
-     */
-    private String clientKeyPath;
-
-    /**
-     * Whether to use reflection for service discovery
-     */
-    private boolean useReflection = false;
-
-    /**
-     * Output variables mapping (JSON path -> variable name)
-     */
-    private List<Property> outputVariables;
-
-    @Override
-    public boolean checkParameters() {
-        boolean basicParamsValid = StringUtils.isNotEmpty(host) 
-            && port > 0 
-            && StringUtils.isNotEmpty(serviceName)
-            && StringUtils.isNotEmpty(methodName)
-            && StringUtils.isNotEmpty(requestJson);
-
-        boolean tlsParamsValid = !useTls || (StringUtils.isNotEmpty(caCertPath) 
-            && StringUtils.isNotEmpty(clientCertPath) 
-            && StringUtils.isNotEmpty(clientKeyPath));
-
-        return basicParamsValid && tlsParamsValid;
-    }
+    
+    // 重试配置
+    private int maxRetries;
+    private long retryDelay;
+    private TimeUnit retryDelayUnit;
 } 

@@ -2,51 +2,149 @@ package org.demo;
 
 import com.google.protobuf.*;
 import com.google.protobuf.Descriptors.*;
+import com.google.protobuf.util.JsonFormat;
 import io.grpc.*;
+import io.grpc.MethodDescriptor;
+import io.grpc.reflection.v1alpha.ServerReflectionGrpc;
+import io.grpc.reflection.v1alpha.ServerReflectionRequest;
+import io.grpc.reflection.v1alpha.ServerReflectionResponse;
 import io.grpc.stub.ClientCalls;
+import io.grpc.stub.StreamObserver;
 
+import javax.net.ssl.SSLException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
 
 public class GrpcDynamicClient {
+    private static final Logger logger = Logger.getLogger(GrpcDynamicClient.class.getName());
+    
     private final ManagedChannel channel;
     private final Map<String, FileDescriptor> fileDescriptorCache;
     private final Map<String, Descriptor> messageDescriptorCache;
+    private final GrpcParameters parameters;
+    private final JsonFormat.Printer jsonPrinter;
+    private final JsonFormat.Parser jsonParser;
 
-    public GrpcDynamicClient(String host, int port) {
-        this.channel = ManagedChannelBuilder.forAddress(host, port)
-                .usePlaintext()
-                .build();
+    public GrpcDynamicClient(GrpcParameters parameters) throws SSLException, IOException, DescriptorValidationException {
+        this.parameters = parameters;
         this.fileDescriptorCache = new ConcurrentHashMap<>();
         this.messageDescriptorCache = new ConcurrentHashMap<>();
+        this.jsonPrinter = JsonFormat.printer().includingDefaultValueFields();
+        this.jsonParser = JsonFormat.parser().ignoringUnknownFields();
+        
+        // 验证SSL配置
+        GrpcSslContext.validateSslConfig(parameters);
+        
+        // 从channel池获取channel
+        this.channel = GrpcChannelPool.getInstance().getChannel(parameters);
+        
+        // 初始化标准类型
         initStandardTypes();
+        
+        // 根据配置选择服务发现方式
+        if (parameters.isUseReflection()) {
+            initServiceViaReflection();
+        } else {
+            initServiceViaProtoFile();
+        }
     }
 
     private void initStandardTypes() {
-        // 初始化标准类型描述符
         try {
-            Descriptor timestampDescriptor = com.google.protobuf.Timestamp.getDescriptor();
-            messageDescriptorCache.put("google.protobuf.Timestamp", timestampDescriptor);
+            // 注册Google标准类型
+            registerStandardType("google.protobuf.Timestamp", Timestamp.getDescriptor());
+            registerStandardType("google.protobuf.Duration", Duration.getDescriptor());
+            registerStandardType("google.protobuf.Any", Any.getDescriptor());
+            registerStandardType("google.protobuf.Struct", Struct.getDescriptor());
+            registerStandardType("google.protobuf.Value", Value.getDescriptor());
+            registerStandardType("google.protobuf.ListValue", ListValue.getDescriptor());
             
-            Descriptor durationDescriptor = com.google.protobuf.Duration.getDescriptor();
-            messageDescriptorCache.put("google.protobuf.Duration", durationDescriptor);
-            
-            Descriptor anyDescriptor = com.google.protobuf.Any.getDescriptor();
-            messageDescriptorCache.put("google.protobuf.Any", anyDescriptor);
-            
-            Descriptor structDescriptor = com.google.protobuf.Struct.getDescriptor();
-            messageDescriptorCache.put("google.protobuf.Struct", structDescriptor);
+            // 注册包装类型
+            registerStandardType("google.protobuf.StringValue", StringValue.getDescriptor());
+            registerStandardType("google.protobuf.Int32Value", Int32Value.getDescriptor());
+            registerStandardType("google.protobuf.Int64Value", Int64Value.getDescriptor());
+            registerStandardType("google.protobuf.BoolValue", BoolValue.getDescriptor());
+            registerStandardType("google.protobuf.DoubleValue", DoubleValue.getDescriptor());
+            registerStandardType("google.protobuf.FloatValue", FloatValue.getDescriptor());
+            registerStandardType("google.protobuf.BytesValue", BytesValue.getDescriptor());
+            registerStandardType("google.protobuf.UInt32Value", UInt32Value.getDescriptor());
+            registerStandardType("google.protobuf.UInt64Value", UInt64Value.getDescriptor());
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize standard types", e);
         }
     }
 
-    public void registerProtoFile(FileDescriptor fileDescriptor) {
+    private void registerStandardType(String fullName, Descriptor descriptor) {
+        messageDescriptorCache.put(fullName, descriptor);
+    }
+
+    private void initServiceViaReflection() {
+        ServerReflectionGrpc.ServerReflectionStub reflectionStub = ServerReflectionGrpc.newStub(channel);
+        
+        StreamObserver<ServerReflectionResponse> responseObserver = new StreamObserver<ServerReflectionResponse>() {
+            @Override
+            public void onNext(ServerReflectionResponse response) {
+                try {
+                    if (response.hasFileDescriptorResponse()) {
+                        for (ByteString fileDescriptorProto : response.getFileDescriptorResponse().getFileDescriptorProtoList()) {
+                            FileDescriptor fileDescriptor = FileDescriptor.buildFrom(
+                                    DescriptorProtos.FileDescriptorProto.parseFrom(fileDescriptorProto),
+                                new FileDescriptor[0]
+                            );
+                            registerProtoFile(fileDescriptor);
+                        }
+                    }
+                } catch (Exception e) {
+                    logger.severe("Error processing reflection response: " + e.getMessage());
+                }
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                logger.severe("Reflection error: " + t.getMessage());
+            }
+
+            @Override
+            public void onCompleted() {
+                logger.info("Reflection completed");
+            }
+        };
+
+        StreamObserver<ServerReflectionRequest> requestObserver = reflectionStub.serverReflectionInfo(responseObserver);
+        requestObserver.onNext(ServerReflectionRequest.newBuilder()
+                .setListServices("")
+                .build());
+        requestObserver.onCompleted();
+    }
+
+    private void initServiceViaProtoFile() throws IOException, DescriptorValidationException {
+        if (parameters.getFileDescriptor() != null) {
+            // 直接使用提供的FileDescriptor
+            registerProtoFile(parameters.getFileDescriptor());
+        } else if (parameters.getDescriptorSetPath() != null) {
+            // 解析描述符集文件
+            List<FileDescriptor> descriptors = ProtoFileParser.parseDescriptorSet(parameters.getDescriptorSetPath());
+            for (FileDescriptor descriptor : descriptors) {
+                registerProtoFile(descriptor);
+            }
+        } else if (parameters.getProtoFilePath() != null) {
+            // 解析单个proto文件
+            FileDescriptor descriptor = ProtoFileParser.parseProtoFile(parameters.getProtoFilePath());
+            registerProtoFile(descriptor);
+        } else {
+            throw new IllegalStateException("No proto file or descriptor provided");
+        }
+    }
+
+    private void registerProtoFile(FileDescriptor fileDescriptor) {
         String packageName = fileDescriptor.getPackage();
         fileDescriptorCache.put(packageName, fileDescriptor);
         
-        // 缓存所有消息类型描述符
         for (Descriptor descriptor : fileDescriptor.getMessageTypes()) {
             messageDescriptorCache.put(packageName + "." + descriptor.getName(), descriptor);
         }
@@ -58,12 +156,12 @@ public class GrpcDynamicClient {
             throw new IllegalArgumentException("Service not found: " + serviceName);
         }
 
-        ServiceDescriptor serviceDescriptor = fileDescriptor.findServiceByName(serviceName);
+        com.google.protobuf.Descriptors.ServiceDescriptor serviceDescriptor = fileDescriptor.findServiceByName(serviceName);
         if (serviceDescriptor == null) {
             throw new IllegalArgumentException("Service not found: " + serviceName);
         }
 
-        MethodDescriptor methodDescriptor = serviceDescriptor.findMethodByName(methodName);
+        com.google.protobuf.Descriptors.MethodDescriptor methodDescriptor = serviceDescriptor.findMethodByName(methodName);
         if (methodDescriptor == null) {
             throw new IllegalArgumentException("Method not found: " + methodName);
         }
@@ -79,7 +177,13 @@ public class GrpcDynamicClient {
                 .setResponseMarshaller(new DynamicMessageMarshaller(methodDescriptor.getOutputType()))
                 .build();
 
-        return ClientCalls.blockingUnaryCall(channel, method, request);
+        CallOptions callOptions = CallOptions.DEFAULT
+                .withDeadlineAfter(parameters.getTimeout(), parameters.getTimeoutUnit());
+
+        return ClientCalls.blockingUnaryCall(
+            channel.newCall(method, callOptions),
+            request
+        );
     }
 
     private FileDescriptor findFileDescriptor(String serviceName) {
@@ -148,8 +252,32 @@ public class GrpcDynamicClient {
         }
     }
 
-    public void shutdown() throws InterruptedException {
-        channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
+    public String messageToJson(DynamicMessage message) {
+        try {
+            return jsonPrinter.print(message);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to convert message to JSON", e);
+        }
+    }
+
+    public DynamicMessage jsonToMessage(String json, String messageTypeName) {
+        try {
+            Descriptor descriptor = messageDescriptorCache.get(messageTypeName);
+            if (descriptor == null) {
+                throw new IllegalArgumentException("Message type not found: " + messageTypeName);
+            }
+            
+            DynamicMessage.Builder builder = DynamicMessage.newBuilder(descriptor);
+            jsonParser.merge(json, builder);
+            return builder.build();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to convert JSON to message", e);
+        }
+    }
+
+    public void shutdown() {
+        // 不再需要关闭channel，由channel池管理
+        logger.info("GrpcDynamicClient shutdown");
     }
 
     private static class DynamicMessageMarshaller implements MethodDescriptor.Marshaller<DynamicMessage> {
@@ -160,7 +288,7 @@ public class GrpcDynamicClient {
         }
 
         @Override
-        public DynamicMessage parse(io.grpc.MethodDescriptor.ProtocolBufferInputStream stream) {
+        public DynamicMessage parse(InputStream stream) {
             try {
                 return DynamicMessage.parseFrom(messageDescriptor, stream);
             } catch (Exception e) {
@@ -169,8 +297,8 @@ public class GrpcDynamicClient {
         }
 
         @Override
-        public io.grpc.MethodDescriptor.ProtocolBufferInputStream stream(DynamicMessage message) {
-            return new io.grpc.MethodDescriptor.ProtocolBufferInputStream(message.toByteString().newInput());
+        public InputStream stream(DynamicMessage message) {
+            return message.toByteString().newInput();
         }
     }
 }
