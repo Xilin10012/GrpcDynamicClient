@@ -17,7 +17,6 @@ public class GrpcParameters {
     
     // 连接配置
     private boolean useTls;
-    private String authority;
     private long timeout;
     private TimeUnit timeoutUnit;
     

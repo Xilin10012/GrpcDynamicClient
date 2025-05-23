@@ -30,7 +30,7 @@ public class GrpcDynamicClient {
     private final JsonFormat.Printer jsonPrinter;
     private final JsonFormat.Parser jsonParser;
 
-    public GrpcDynamicClient(GrpcParameters parameters) throws SSLException, IOException, DescriptorValidationException {
+    public GrpcDynamicClient(GrpcParameters parameters) throws IOException, DescriptorValidationException {
         this.parameters = parameters;
         this.fileDescriptorCache = new ConcurrentHashMap<>();
         this.messageDescriptorCache = new ConcurrentHashMap<>();
