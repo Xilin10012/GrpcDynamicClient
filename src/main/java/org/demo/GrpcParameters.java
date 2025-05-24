@@ -31,10 +31,8 @@ public class GrpcParameters {
     
     // 服务发现配置
     private boolean useReflection;
-    private FileDescriptor fileDescriptor;
     private String protoFilePath;     // proto文件路径
-    private String descriptorSetPath; // 描述符集文件路径
-    
+
     // 请求参数
     private String requestJson;
     
