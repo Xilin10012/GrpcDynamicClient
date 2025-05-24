@@ -120,21 +120,12 @@ public class GrpcDynamicClient {
     }
 
     private void initServiceViaProtoFile() throws IOException, DescriptorValidationException {
-        if (parameters.getFileDescriptor() != null) {
-            // 直接使用提供的FileDescriptor
-            registerProtoFile(parameters.getFileDescriptor());
-        } else if (parameters.getDescriptorSetPath() != null) {
-            // 解析描述符集文件
-            List<FileDescriptor> descriptors = ProtoFileParser.parseDescriptorSet(parameters.getDescriptorSetPath());
-            for (FileDescriptor descriptor : descriptors) {
-                registerProtoFile(descriptor);
-            }
-        } else if (parameters.getProtoFilePath() != null) {
+        if (parameters.getProtoFilePath() != null) {
             // 解析单个proto文件
             FileDescriptor descriptor = ProtoFileParser.parseProtoFile(parameters.getProtoFilePath());
             registerProtoFile(descriptor);
         } else {
-            throw new IllegalStateException("No proto file or descriptor provided");
+            throw new IllegalStateException("No proto file provided");
         }
     }
 
