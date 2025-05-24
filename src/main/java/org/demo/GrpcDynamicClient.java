@@ -264,7 +264,6 @@ public class GrpcDynamicClient {
     }
 
     public void shutdown() {
-        // 不再直接关闭channel，而是通过channel池来管理
         GrpcChannelPool.getInstance().shutdown();
         logger.info("GrpcDynamicClient shutdown");
     }

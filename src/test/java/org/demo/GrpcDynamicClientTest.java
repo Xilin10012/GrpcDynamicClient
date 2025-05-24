@@ -92,7 +92,6 @@ public class GrpcDynamicClientTest {
                 .serviceName("TestService")
                 .methodName("testMethod")
                 .useTls(false)
-                .fileDescriptor(fileDescriptor)
                 .timeout(5)
                 .timeoutUnit(TimeUnit.SECONDS)
                 .build();
