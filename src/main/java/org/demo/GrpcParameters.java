@@ -1,6 +1,5 @@
 package org.demo;
 
-import com.google.protobuf.Descriptors.FileDescriptor;
 import lombok.Data;
 import lombok.Builder;
 
@@ -31,4 +30,6 @@ public class GrpcParameters {
     private int maxRetries;
     private long retryDelay;
     private TimeUnit retryDelayUnit;
+    private String retryStatusCode;
+
 } 

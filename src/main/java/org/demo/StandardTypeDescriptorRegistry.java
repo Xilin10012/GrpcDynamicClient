@@ -3,7 +3,6 @@ package org.demo; // 或者一个更合适的公共包
 import com.google.protobuf.Any;
 import com.google.protobuf.BoolValue;
 import com.google.protobuf.BytesValue;
-import com.google.protobuf.DescriptorProtos;
 import com.google.protobuf.Descriptors.Descriptor;
 import com.google.protobuf.DoubleValue;
 import com.google.protobuf.Duration;
